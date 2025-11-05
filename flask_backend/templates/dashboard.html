@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="dashboard-page" data-api-base="{{ request.url_root.rstrip('/') }}">
+  <div class="dashboard-layout">
+    <aside class="dashboard-sidebar">
+      <nav class="sidebar-nav">
+        <button class="nav-link active" data-view="dashboard">Dashboard</button>
+        <div>
+          <button class="nav-toggle" data-toggle="settings">
+            Settings
+            <span aria-hidden="true">&#9662;</span>
+          </button>
+          <div class="nav-submenu" data-settings-panel hidden>
+            <button class="nav-link" data-view="account">Account Information</button>
+          </div>
+        </div>
+        <button class="nav-link logout" data-action="logout">Log Out</button>
+      </nav>
+    </aside>
+
+    <main class="dashboard-content">
+      <section class="panel" data-section="dashboard">
+        <div class="card welcome-card">
+          <div class="tag">Overview</div>
+          <h1>Welcome, <span data-profile-text="firstName">there</span></h1>
+          <p>Track your account details and keep your information up to date.</p>
+        </div>
+      </section>
+
+      <section class="panel" data-section="account" hidden>
+        <div class="card">
+          <h2 class="info-heading">Account Information</h2>
+          <p class="info-subheading">
+            Review and edit your personal details. Email is managed by support and cannot be changed here.
+          </p>
+
+          <div class="info-grid">
+            <div class="info-field" data-field="firstName">
+              <span class="info-label">First name</span>
+              <div class="field-control">
+                <input type="text" name="firstName" data-profile-input="firstName" data-editable="true" disabled>
+              </div>
+              <p class="field-error" data-error-for="firstName" hidden></p>
+            </div>
+
+            <div class="info-field" data-field="lastName">
+              <span class="info-label">Last name</span>
+              <div class="field-control">
+                <input type="text" name="lastName" data-profile-input="lastName" data-editable="true" disabled>
+              </div>
+              <p class="field-error" data-error-for="lastName" hidden></p>
+            </div>
+
+            <div class="info-field">
+              <span class="info-label">Email</span>
+              <div class="field-control">
+                <input type="email" name="email" data-profile-input="email" data-editable="false" disabled>
+              </div>
+            </div>
+
+            <div class="info-field" data-field="mobile">
+              <span class="info-label">Phone number</span>
+              <div class="field-control">
+                <input type="tel" name="mobile" data-profile-input="mobile" data-editable="true" disabled>
+              </div>
+              <p class="field-error" data-error-for="mobile" hidden></p>
+            </div>
+
+            <div class="info-field" data-field="dob">
+              <span class="info-label">Date of birth</span>
+              <div class="field-control">
+                <input type="date" name="dob" data-profile-input="dob" data-editable="true" disabled>
+              </div>
+              <p class="field-error" data-error-for="dob" hidden></p>
+            </div>
+
+            <div class="info-field" data-field="country">
+              <span class="info-label">Country (optional)</span>
+              <div class="field-control">
+                <input type="text" name="country" data-profile-input="country" data-editable="true" disabled>
+              </div>
+              <p class="field-error" data-error-for="country" hidden></p>
+            </div>
+
+            <div class="info-field" data-field="bio">
+              <span class="info-label">Bio (optional)</span>
+              <div class="field-control">
+                <textarea name="bio" data-profile-input="bio" data-editable="true" rows="4" disabled></textarea>
+              </div>
+              <p class="field-error" data-error-for="bio" hidden></p>
+            </div>
+          </div>
+
+          <div class="card info-actions">
+            <div class="actions-row">
+              <button type="button" class="btn btn-ghost" data-action="start-edit">Edit profile</button>
+              <button type="button" class="btn btn-primary" data-action="save-profile" hidden>Save changes</button>
+            </div>
+            <p class="status-message" data-status hidden></p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const apiBase = document.body.dataset.apiBase || window.location.origin;
+      const settingsToggle = document.querySelector('[data-toggle="settings"]');
+      const settingsPanel = document.querySelector('[data-settings-panel]');
+      const viewButtons = document.querySelectorAll('[data-view]');
+      const sections = document.querySelectorAll('[data-section]');
+      const editButton = document.querySelector('[data-action="start-edit"]');
+      const saveButton = document.querySelector('[data-action="save-profile"]');
+      const logoutButton = document.querySelector('[data-action="logout"]');
+      const statusMessage = document.querySelector('[data-status]');
+      const textTargets = document.querySelectorAll('[data-profile-text]');
+      const inputTargets = Array.from(document.querySelectorAll('[data-profile-input]'));
+
+      let editing = false;
+      let saving = false;
+      let currentView = "dashboard";
+
+      const setActiveView = (view) => {
+        currentView = view;
+        sections.forEach((section) => {
+          section.hidden = section.dataset.section !== view;
+        });
+        viewButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.view === view);
+        });
+        if (settingsToggle) {
+          const highlight = view === "account";
+          settingsToggle.classList.toggle("active", highlight);
+          if (highlight && settingsPanel && settingsPanel.hidden) {
+            settingsPanel.hidden = false;
+          }
+        }
+      };
+
+      viewButtons.forEach((button) => {
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          const view = button.dataset.view;
+          if (view === "account" && settingsPanel && settingsPanel.hidden) {
+            settingsPanel.hidden = false;
+          }
+          setActiveView(view);
+        });
+      });
+
+      setActiveView("dashboard");
+
+      settingsToggle?.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (!settingsPanel) return;
+        const willOpen = settingsPanel.hidden;
+        settingsPanel.hidden = !willOpen;
+        if (!willOpen && currentView === "account") {
+          setActiveView("dashboard");
+        }
+      });
+
+      logoutButton?.addEventListener("click", () => {
+        sessionStorage.removeItem("user_profile");
+        window.location.href = "/";
+      });
+
+      const storedProfile = sessionStorage.getItem("user_profile");
+      let rawProfile = {};
+
+      if (storedProfile) {
+        try {
+          rawProfile = JSON.parse(storedProfile) || {};
+        } catch (error) {
+          console.error("Failed to parse stored profile", error);
+        }
+      }
+
+      const normalized = {
+        id: rawProfile.id ?? rawProfile.user_id ?? null,
+        firstName: rawProfile.first_name ?? rawProfile.firstName ?? "",
+        lastName: rawProfile.last_name ?? rawProfile.lastName ?? "",
+        email: rawProfile.email ?? "",
+        mobile: rawProfile.mobile ?? rawProfile.phone ?? "",
+        dob: rawProfile.dob ?? rawProfile.date_of_birth ?? "",
+        country: rawProfile.country ?? "",
+        bio: rawProfile.bio ?? "",
+      };
+
+      const namePattern = /^[A-Za-z]+$/;
+      const todayISO = new Date().toISOString().split("T")[0];
+
+      document.querySelectorAll('input[type="date"]').forEach((input) => {
+        if (!input.max) {
+          input.max = todayISO;
+        }
+      });
+
+      const setStatus = (message, variant = "info") => {
+        if (!statusMessage) return;
+        if (!message) {
+          statusMessage.textContent = "";
+          statusMessage.hidden = true;
+          delete statusMessage.dataset.variant;
+          return;
+        }
+        statusMessage.textContent = message;
+        statusMessage.dataset.variant = variant;
+        statusMessage.hidden = false;
+      };
+
+      const showFieldMessage = (field, message) => {
+        const fieldError = document.querySelector(`[data-error-for="${field}"]`);
+        if (!fieldError) return;
+        if (!message) {
+          fieldError.textContent = "";
+          fieldError.hidden = true;
+          return;
+        }
+        fieldError.textContent = message;
+        fieldError.hidden = false;
+      };
+
+      const clearAllFieldMessages = () => {
+        document.querySelectorAll("[data-error-for]").forEach((node) => {
+          node.textContent = "";
+          node.hidden = true;
+        });
+      };
+
+      const updateTextDisplays = () => {
+        const fullName = [normalized.firstName, normalized.lastName].filter(Boolean).join(" ");
+        textTargets.forEach((node) => {
+          const key = node.dataset.profileText;
+          if (key === "firstName") {
+            node.textContent = normalized.firstName ? normalized.firstName : "there";
+          } else if (key === "fullName") {
+            node.textContent = fullName || "Guest";
+          } else if (key && Object.prototype.hasOwnProperty.call(normalized, key)) {
+            node.textContent = normalized[key] || "-";
+          }
+        });
+      };
+
+      const hydrateInputs = () => {
+        inputTargets.forEach((input) => {
+          const key = input.dataset.profileInput;
+          if (!key) return;
+          if (Object.prototype.hasOwnProperty.call(normalized, key)) {
+            input.value = normalized[key] || "";
+          } else if (key === "email") {
+            input.value = normalized.email || "";
+          }
+        });
+      };
+
+      updateTextDisplays();
+      hydrateInputs();
+
+      const persistProfile = () => {
+        const nextProfile = {
+          ...rawProfile,
+          id: normalized.id,
+          email: normalized.email,
+          first_name: normalized.firstName,
+          last_name: normalized.lastName,
+          mobile: normalized.mobile,
+          dob: normalized.dob,
+          country: normalized.country,
+          bio: normalized.bio,
+        };
+        rawProfile = nextProfile;
+        sessionStorage.setItem("user_profile", JSON.stringify(nextProfile));
+      };
+
+      const toggleEditing = (enable) => {
+        editing = enable;
+        if (editButton) {
+          editButton.hidden = enable;
+        }
+        if (saveButton) {
+          saveButton.hidden = !enable;
+          if (!enable) {
+            saveButton.disabled = false;
+          }
+        }
+        inputTargets.forEach((input) => {
+          const canEdit = input.dataset.editable === "true";
+          if (!canEdit) return;
+          input.disabled = !enable;
+        });
+        if (!enable) {
+          clearAllFieldMessages();
+        }
+      };
+
+      toggleEditing(false);
+
+      if (!normalized.id) {
+        editButton?.setAttribute("disabled", "true");
+        setStatus("No profile data found. Sign in first to load your account details.", "info");
+      } else {
+        editButton?.removeAttribute("disabled");
+      }
+
+      const validateField = (field, value) => {
+        const trimmed = (value ?? "").trim();
+        switch (field) {
+          case "firstName":
+            if (!trimmed) return "First name is required.";
+            if (!namePattern.test(trimmed)) return "First name may only contain letters.";
+            return "";
+          case "lastName":
+            if (!trimmed) return "Last name is required.";
+            if (!namePattern.test(trimmed)) return "Last name may only contain letters.";
+            return "";
+          case "mobile":
+            if (!trimmed) return "";
+            if (!/^[+\d\s()-]{7,20}$/.test(trimmed)) return "Enter a valid mobile number.";
+            const digits = trimmed.replace(/\D/g, "");
+            if (digits.length < 10) return "Enter at least 10 digits for the phone number.";
+            return "";
+          case "dob":
+            if (!trimmed) return "";
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return "Enter date in YYYY-MM-DD format.";
+            if (trimmed > todayISO) return "Date of birth cannot be in the future.";
+            return "";
+          case "country":
+            return "";
+          case "bio":
+            if (trimmed.length > 280) return "Bio must be 280 characters or fewer.";
+            return "";
+          default:
+            return "";
+        }
+      };
+
+      const collectValues = () => {
+        const values = {
+          firstName: normalized.firstName || "",
+          lastName: normalized.lastName || "",
+          mobile: normalized.mobile || "",
+          dob: normalized.dob || "",
+          country: normalized.country || "",
+          bio: normalized.bio || "",
+        };
+
+        inputTargets.forEach((input) => {
+          const key = input.dataset.profileInput;
+          if (!key || !(key in values)) return;
+          values[key] = (input.value || "").trim();
+        });
+        return values;
+      };
+
+      const applyNormalizedFromServer = (user) => {
+        if (!user) return;
+        normalized.id = user.id ?? normalized.id ?? null;
+        normalized.email = user.email ?? normalized.email ?? "";
+        normalized.firstName = user.first_name ?? normalized.firstName ?? "";
+        normalized.lastName = user.last_name ?? normalized.lastName ?? "";
+        normalized.mobile = user.mobile ?? "";
+        normalized.dob = user.dob ?? "";
+        normalized.country = user.country ?? "";
+        normalized.bio = user.bio ?? "";
+      };
+
+      const focusField = (field) => {
+        const target = inputTargets.find((input) => input.dataset.profileInput === field);
+        if (target && target.dataset.editable === "true") {
+          target.focus();
+        }
+      };
+
+      editButton?.addEventListener("click", () => {
+        if (!normalized.id) {
+          setStatus("No profile data found. Sign in first to load your account details.", "info");
+          return;
+        }
+        setStatus("");
+        clearAllFieldMessages();
+        toggleEditing(true);
+        const firstEditable = inputTargets.find((input) => input.dataset.editable === "true");
+        firstEditable?.focus();
+      });
+
+      saveButton?.addEventListener("click", async () => {
+        if (!editing || saving) return;
+        if (!normalized.id) {
+          setStatus("Missing user identifier. Please sign in again.", "error");
+          toggleEditing(false);
+          return;
+        }
+
+        setStatus("");
+        clearAllFieldMessages();
+
+        const values = collectValues();
+        const fieldOrder = ["firstName", "lastName", "mobile", "dob", "country", "bio"];
+        let firstErrorField = "";
+        let hasError = false;
+
+        fieldOrder.forEach((field) => {
+          const error = validateField(field, values[field]);
+          if (error) {
+            hasError = true;
+            if (!firstErrorField) {
+              firstErrorField = field;
+            }
+            showFieldMessage(field, error);
+          } else {
+            showFieldMessage(field, "");
+          }
+        });
+
+        if (hasError) {
+          if (firstErrorField) {
+            focusField(firstErrorField);
+          }
+          setStatus("Please resolve the highlighted fields before saving.", "error");
+          return;
+        }
+
+        const payload = {
+          first_name: values.firstName,
+          last_name: values.lastName,
+          mobile: values.mobile || null,
+          dob: values.dob || null,
+          country: values.country || null,
+          bio: values.bio || null,
+        };
+
+        saving = true;
+        saveButton.disabled = true;
+
+        try {
+          const response = await fetch(`${apiBase}/api/users/${normalized.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          let responseBody = null;
+          try {
+            responseBody = await response.json();
+          } catch {
+            responseBody = null;
+          }
+
+          if (!response.ok) {
+            const serverFieldMap = {
+              first_name: "firstName",
+              last_name: "lastName",
+              mobile: "mobile",
+              dob: "dob",
+              country: "country",
+              bio: "bio",
+            };
+
+            if (responseBody && responseBody.errors && typeof responseBody.errors === "object") {
+              Object.entries(responseBody.errors).forEach(([key, message]) => {
+                const field = serverFieldMap[key] || key;
+                showFieldMessage(field, String(message));
+                if (!firstErrorField) {
+                  firstErrorField = field;
+                }
+              });
+              if (firstErrorField) {
+                focusField(firstErrorField);
+              }
+            }
+
+            const message =
+              (responseBody && typeof responseBody.detail === "string" && responseBody.detail) ||
+              "Unable to update profile.";
+            setStatus(message, "error");
+            return;
+          }
+
+          if (responseBody && responseBody.user) {
+            applyNormalizedFromServer(responseBody.user);
+            updateTextDisplays();
+            hydrateInputs();
+            persistProfile();
+          }
+
+          toggleEditing(false);
+          setStatus(
+            (responseBody && typeof responseBody.message === "string" && responseBody.message) ||
+              "Profile updated successfully.",
+            "success",
+          );
+        } catch (error) {
+          console.error("Profile update failed", error);
+          setStatus("Network error. Please try again.", "error");
+        } finally {
+          saving = false;
+          saveButton.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
